@@ -17,6 +17,7 @@ import 'dart:async';
 
 import '../shared/status.dart';
 import 'call.dart';
+import 'handler_wrapper.dart';
 
 /// Definition of a gRPC service method.
 class ServiceMethod<Q, R> {
@@ -30,13 +31,17 @@ class ServiceMethod<Q, R> {
 
   final Function handler;
 
+  final HandlerWrapper<Q, R>? handlerWrapper;
+
   ServiceMethod(
-      this.name,
-      this.handler,
-      this.streamingRequest,
-      this.streamingResponse,
-      this.requestDeserializer,
-      this.responseSerializer);
+    this.name,
+    this.handler,
+    this.streamingRequest,
+    this.streamingResponse,
+    this.requestDeserializer,
+    this.responseSerializer, [
+    this.handlerWrapper,
+  ]);
 
   StreamController<Q> createRequestStream(StreamSubscription incoming) =>
       StreamController<Q>(
@@ -49,18 +54,26 @@ class ServiceMethod<Q, R> {
   List<int> serialize(dynamic response) => responseSerializer(response as R);
 
   Stream<R> handle(ServiceCall call, Stream<Q> requests) {
-    if (streamingResponse) {
-      if (streamingRequest) {
-        return handler(call, requests);
+    Stream<R> handlerFunction() {
+      if (streamingResponse) {
+        if (streamingRequest) {
+          return handler(call, requests);
+        } else {
+          return handler(call, _toSingleFuture(requests));
+        }
       } else {
-        return handler(call, _toSingleFuture(requests));
+        final response = streamingRequest
+            ? handler(call, requests)
+            : handler(call, _toSingleFuture(requests));
+        return response.asStream();
       }
-    } else {
-      final response = streamingRequest
-          ? handler(call, requests)
-          : handler(call, _toSingleFuture(requests));
-      return response.asStream();
     }
+
+    if (handlerWrapper != null) {
+      return handlerWrapper!(call, handlerFunction);
+    }
+
+    return handlerFunction();
   }
 
   Future<Q> _toSingleFuture(Stream<Q> stream) {
@@ -88,6 +101,26 @@ class ServiceMethod<Q, R> {
     try {
       await f;
     } catch (_) {}
+  }
+
+  ServiceMethod<Q, R> copyWith({
+    String? name,
+    bool? streamingRequest,
+    bool? streamingResponse,
+    Q Function(List<int> request)? requestDeserializer,
+    List<int> Function(R response)? responseSerializer,
+    Function? handler,
+    HandlerWrapper<Q, R>? handlerWrapper,
+  }) {
+    return ServiceMethod<Q, R>(
+      name ?? this.name,
+      handler ?? this.handler,
+      streamingRequest ?? this.streamingRequest,
+      streamingResponse ?? this.streamingResponse,
+      requestDeserializer ?? this.requestDeserializer,
+      responseSerializer ?? this.responseSerializer,
+      handlerWrapper ?? this.handlerWrapper,
+    );
   }
 }
 

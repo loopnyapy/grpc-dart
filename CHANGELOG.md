@@ -1,3 +1,7 @@
+## 3.2.5
+
+* Add HandlerWrapper to support single middleware
+
 ## 3.2.4
 
 * Forward internal `GrpcError` on when throwing while sending a request.

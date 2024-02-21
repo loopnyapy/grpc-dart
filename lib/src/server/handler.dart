@@ -26,6 +26,7 @@ import '../shared/status.dart';
 import '../shared/streams.dart';
 import '../shared/timeout.dart';
 import 'call.dart';
+import 'handler_wrapper.dart';
 import 'interceptor.dart';
 import 'service.dart';
 
@@ -37,6 +38,7 @@ class ServerHandler extends ServiceCall {
   final ServerTransportStream _stream;
   final ServiceLookup _serviceLookup;
   final List<Interceptor> _interceptors;
+  final HandlerWrapper? _handlerWrapper;
   final CodecRegistry? _codecRegistry;
   final GrpcErrorHandler? _errorHandler;
 
@@ -85,12 +87,14 @@ class ServerHandler extends ServiceCall {
     required List<Interceptor> interceptors,
     required CodecRegistry? codecRegistry,
     X509Certificate? clientCertificate,
+    HandlerWrapper? handlerWrapper,
     InternetAddress? remoteAddress,
     GrpcErrorHandler? errorHandler,
     this.onDataReceived,
   })  : _stream = stream,
         _serviceLookup = serviceLookup,
         _interceptors = interceptors,
+        _handlerWrapper = handlerWrapper,
         _codecRegistry = codecRegistry,
         _clientCertificate = clientCertificate,
         _remoteAddress = remoteAddress,
@@ -182,7 +186,7 @@ class ServerHandler extends ServiceCall {
       return;
     }
     _service = service!;
-    _descriptor = descriptor;
+    _descriptor = descriptor.copyWith(handlerWrapper: _handlerWrapper);
 
     final error = await _applyInterceptors();
     if (error != null) {
@@ -239,19 +243,34 @@ class ServerHandler extends ServiceCall {
       return;
     }
 
-    _responses = _descriptor.handle(this, requests.stream);
+    try {
+      _responses = _descriptor.handle(this, requests.stream);
 
-    _responseSubscription = _responses.listen(_onResponse,
-        onError: _onResponseError,
-        onDone: _onResponseDone,
-        cancelOnError: true);
-    _incomingSubscription!.onData(_onDataActive);
-    _incomingSubscription!.onDone(_onDoneExpected);
+      _responseSubscription = _responses.listen(_onResponse,
+          onError: _onResponseError,
+          onDone: _onResponseDone,
+          cancelOnError: true);
+      _incomingSubscription!.onData(_onDataActive);
+      _incomingSubscription!.onDone(_onDoneExpected);
 
-    final timeout = fromTimeoutString(_clientMetadata!['grpc-timeout']);
-    if (timeout != null) {
-      _deadline = DateTime.now().add(timeout);
-      _timeoutTimer = Timer(timeout, _onTimedOut);
+      final timeout = fromTimeoutString(_clientMetadata!['grpc-timeout']);
+      if (timeout != null) {
+        _deadline = DateTime.now().add(timeout);
+        _timeoutTimer = Timer(timeout, _onTimedOut);
+      }
+    } catch (error) {
+      final grpcError = GrpcError.internal(error.toString());
+
+      if (!requests.isClosed) {
+        requests
+          ..addError(grpcError)
+          ..close();
+      }
+      _sendError(grpcError);
+      _onDone();
+      _stream.terminate();
+
+      return;
     }
   }
 

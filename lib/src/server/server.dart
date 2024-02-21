@@ -23,6 +23,7 @@ import '../shared/codec_registry.dart';
 import '../shared/io_bits/io_bits.dart' as io_bits;
 import '../shared/security.dart';
 import 'handler.dart';
+import 'handler_wrapper.dart';
 import 'interceptor.dart';
 import 'server_keepalive.dart';
 import 'service.dart';
@@ -87,6 +88,7 @@ class ServerTlsCredentials extends ServerCredentials {
 class ConnectionServer {
   final Map<String, Service> _services = {};
   final List<Interceptor> _interceptors;
+  final HandlerWrapper? _handlerWrapper;
   final CodecRegistry? _codecRegistry;
   final GrpcErrorHandler? _errorHandler;
   final ServerKeepAliveOptions _keepAliveOptions;
@@ -103,8 +105,10 @@ class ConnectionServer {
     CodecRegistry? codecRegistry,
     GrpcErrorHandler? errorHandler,
     this._keepAliveOptions = const ServerKeepAliveOptions(),
+    HandlerWrapper? handlerWrapper,
   ])  : _codecRegistry = codecRegistry,
         _interceptors = interceptors,
+        _handlerWrapper = handlerWrapper,
         _errorHandler = errorHandler {
     for (final service in services) {
       _services[service.$name] = service;
@@ -168,6 +172,7 @@ class ConnectionServer {
         stream: stream,
         serviceLookup: lookupService,
         interceptors: _interceptors,
+        handlerWrapper: _handlerWrapper,
         codecRegistry: _codecRegistry,
         // ignore: unnecessary_cast
         clientCertificate: clientCertificate as io_bits.X509Certificate?,
@@ -203,12 +208,14 @@ class Server extends ConnectionServer {
     List<Interceptor> interceptors = const <Interceptor>[],
     CodecRegistry? codecRegistry,
     GrpcErrorHandler? errorHandler,
+    HandlerWrapper? handlerWrapper,
   }) : super(
           services,
           interceptors,
           codecRegistry,
           errorHandler,
           keepAliveOptions,
+          handlerWrapper,
         );
 
   /// The port that the server is listening on, or `null` if the server is not
@@ -315,6 +322,7 @@ class Server extends ConnectionServer {
       remoteAddress: remoteAddress as io_bits.InternetAddress?,
       errorHandler: _errorHandler,
       onDataReceived: onDataReceived,
+      handlerWrapper: _handlerWrapper,
     )..handle();
   }
 
