@@ -243,34 +243,20 @@ class ServerHandler extends ServiceCall {
       return;
     }
 
-    try {
-      _responses = _descriptor.handle(this, requests.stream);
+    _responses = _descriptor.handle(this, requests.stream);
 
-      _responseSubscription = _responses.listen(_onResponse,
-          onError: _onResponseError,
-          onDone: _onResponseDone,
-          cancelOnError: true);
-      _incomingSubscription!.onData(_onDataActive);
-      _incomingSubscription!.onDone(_onDoneExpected);
+    _responseSubscription = _responses.listen(_onResponse,
+        onError: _onResponseError,
+        onDone: _onResponseDone,
+        cancelOnError: true);
+    _incomingSubscription!.onData(_onDataActive);
+    _incomingSubscription!.onDone(_onDoneExpected);
+    _incomingSubscription!.onError(_onError);
 
-      final timeout = fromTimeoutString(_clientMetadata!['grpc-timeout']);
-      if (timeout != null) {
-        _deadline = DateTime.now().add(timeout);
-        _timeoutTimer = Timer(timeout, _onTimedOut);
-      }
-    } catch (error) {
-      final grpcError = GrpcError.internal(error.toString());
-
-      if (!requests.isClosed) {
-        requests
-          ..addError(grpcError)
-          ..close();
-      }
-      _sendError(grpcError);
-      _onDone();
-      _stream.terminate();
-
-      return;
+    final timeout = fromTimeoutString(_clientMetadata!['grpc-timeout']);
+    if (timeout != null) {
+      _deadline = DateTime.now().add(timeout);
+      _timeoutTimer = Timer(timeout, _onTimedOut);
     }
   }
 

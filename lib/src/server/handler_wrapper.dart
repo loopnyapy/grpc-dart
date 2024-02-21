@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'call.dart';
 
-typedef HandlerWrapper<Q, R> = Stream<R> Function(
+/// HandlerWrapper is used as a sort of Middleware. Every [ServiceMethod.handler]
+/// will be wrapped with this function, if presented. Therefore, return of `handlerFunction`
+/// is obligatory.
+typedef HandlerWrapper = Function(
   ServiceCall call,
-  Stream<R> Function() handlerFunction,
+  Stream Function() handlerFunction,
 );

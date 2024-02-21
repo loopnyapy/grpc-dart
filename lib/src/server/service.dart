@@ -31,7 +31,7 @@ class ServiceMethod<Q, R> {
 
   final Function handler;
 
-  final HandlerWrapper<Q, R>? handlerWrapper;
+  final HandlerWrapper? handlerWrapper;
 
   ServiceMethod(
     this.name,
@@ -110,7 +110,7 @@ class ServiceMethod<Q, R> {
     Q Function(List<int> request)? requestDeserializer,
     List<int> Function(R response)? responseSerializer,
     Function? handler,
-    HandlerWrapper<Q, R>? handlerWrapper,
+    HandlerWrapper? handlerWrapper,
   }) {
     return ServiceMethod<Q, R>(
       name ?? this.name,
