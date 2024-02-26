@@ -70,7 +70,7 @@ class ServiceMethod<Q, R> {
     }
 
     if (handlerWrapper != null) {
-      return handlerWrapper!(call, handlerFunction);
+      return handlerWrapper!(call, handlerFunction).cast<R>();
     }
 
     return handlerFunction();
